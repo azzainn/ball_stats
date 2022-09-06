@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 
-years = list(range(2011,2022))
-player_url = "https://stats.nba.com/stats/leaguedashplayerstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season=2021-22&SeasonSegment=&SeasonType=Regular+Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=&Weight="
+years = list(range(11,22))
+player_url = "https://stats.nba.com/stats/leaguedashplayerstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season=20{}&SeasonSegment=&SeasonType=Regular+Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=&Weight="
 
 # bypasses nba's bot detection
 headers  = {
@@ -20,12 +20,15 @@ headers  = {
     'Accept-Language': 'en-US,en;q=0.9',
 }
 
-request_url = requests.get(url=player_url, headers=headers).json()
-players = request_url["resultSets"][0]["rowSet"]
-columns = request_url["resultSets"][0]["headers"]
+for year in years:
+    year_url = player_url.format(str(year) + "-" + str(year + 1)) # need to do this weird formatting b/c url has year written as, for example, "2011-2012"
+    request_year_url = requests.get(url=year_url, headers=headers).json()
 
-stats_df = pd.DataFrame(players, columns=columns)
-stats_df.to_csv("player_stats", index=False)
+    players = request_year_url["resultSets"][0]["rowSet"] # need this to navigate through html and extract only the player data
+    columns = request_year_url["resultSets"][0]["headers"]
+
+    stats_df = pd.DataFrame(players, columns=columns)
+    stats_df.to_csv(f"player_stats_20{year}", index=False)
 
 # # scraping player data 
 # for year in years:
