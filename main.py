@@ -28,7 +28,7 @@ for year in years:
     columns = request_year_url["resultSets"][0]["headers"]
 
     stats_df = pd.DataFrame(players, columns=columns)
-    stats_df.to_csv(f"player_stats_20{year}", index=False)
+    stats_df.to_csv(f"player_stats_20{year}.csv", index=False)
 
 # # scraping player data 
 # for year in years:
