@@ -1,4 +1,5 @@
 import requests
+import csv
 import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -29,4 +30,15 @@ for year in years:
         columns = request_year_url["resultSets"][0]["headers"]
 
         stats_df = pd.DataFrame(players, columns=columns)
+        del stats_df["PLAYER_ID"]
+        del stats_df["TEAM_ID"]
+        del stats_df["WNBA_FANTASY_PTS"]
+        del stats_df["WNBA_FANTASY_PTS_RANK"]
         stats_df.to_csv(f"player_stats_20{year}.csv", mode="w+", index=False)
+
+def name_search():
+    player_name = input("Whose predictions would you like to see? (First Last)").title()
+    players = pd.read_csv("player_stats_2011.csv")
+    print(players)
+
+name_search()
