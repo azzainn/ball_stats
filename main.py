@@ -40,15 +40,15 @@ for year in years:
 
 # player_name = input("Whose predictions would you like to see? (First Last)").title()
 
-def predict_stats(player_name):
-    player_stats = []   # not initializing a df to save memory
+def get_player_stats(player_name):
+
+    player_stats = []   # not initializing a df to save memory 
     for year in years:
         stats_df_year = pd.read_csv(f"player_stats_20{year}.csv")
         player_stats_year = stats_df_year.loc[stats_df_year["PLAYER_NAME"].str.contains(player_name, case=False)].iloc[0]
         
         if not player_stats_year.empty:
             player_stats.append(player_stats_year)
-    player_stats_df = pd.DataFrame(player_stats)
-    # print(player_stats_df)
 
-predict_stats("Stephen Curry")
+    player_stats_df = pd.DataFrame(player_stats)
+    return player_stats_df
