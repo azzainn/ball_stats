@@ -1,10 +1,9 @@
 import requests
-import csv
 import numpy as np
 import pandas as pd
 import os.path
-import torch
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge # useful form of linear regression to prevent overfitting
+from sklearn.metrics import mean_squared_error # useful error metric for regression
 
 years = list(range(11,22))
 player_url = "https://stats.nba.com/stats/leaguedashplayerstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season=20{}&SeasonSegment=&SeasonType=Regular+Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=&Weight="
@@ -66,14 +65,18 @@ def train_model(stat_to_predict, player_name):
 
     training_data = get_player_stats(player_name)[get_player_stats(player_name)["YEAR"] < 2021]
     testing_data = get_player_stats(player_name)[get_player_stats(player_name)["YEAR"] == 2021]
+    # print(training_data)
+    # print(testing_data)
 
-    model = Ridge(alpha=.1) # prevents overfitting
+    model = Ridge(alpha=.1)
     model.fit(training_data[[stat for stat in numerical_stats if stat != stat_to_predict]], training_data[stat_to_predict])
     
     predicted_stat = model.predict(testing_data[[stat for stat in numerical_stats if stat != stat_to_predict]])
     predicted_stat = pd.DataFrame(predicted_stat, columns=["predicted_stat"], index=testing_data.index)
     
     combined_stats = pd.concat([testing_data[["PLAYER_NAME", stat_to_predict]], predicted_stat], axis=1)
-    print(combined_stats)
-
+    # print(combined_stats)
+    mean_difference = mean_squared_error(combined_stats[stat_to_predict], combined_stats["predicted_stat"])
+    print(mean_difference)
+    
 train_model("PTS", "Lebron James")
