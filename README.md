@@ -1,4 +1,4 @@
 # ball_stats
-uses ML to predict future player performance <br />
-goal: create accurate model of a specific nba player's performance for the upcoming NBA season <br />
-why: to draft the correct players for fantasy
+uses data scraping and machine learning to predict future player performance <br />
+goal: create accurate model of nba players' performance for the upcoming NBA season <br />
+why: to help draft the best performing players for fantasy basketball
