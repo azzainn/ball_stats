@@ -1,3 +1,5 @@
+import math
+from math import comb
 import requests
 import numpy as np
 import pandas as pd
@@ -44,16 +46,26 @@ for year in years:
 def get_player_stats(player_name):
 
     player_stats = []   # not initializing a df to save memory 
+
     for year in years:
-        stats_df_year = pd.read_csv(f"player_stats_20{year}.csv")
-        player_stats_year = stats_df_year.loc[stats_df_year["PLAYER_NAME"].str.contains(player_name, case=False)].iloc[0]
+        all_stats_year = pd.read_csv(f"player_stats_20{year}.csv")
+        player_stats_year = all_stats_year.loc[all_stats_year["PLAYER_NAME"].str.contains(player_name, case=False)].at[0]
         
         if not player_stats_year.empty:
             player_stats.append(player_stats_year)
 
     player_stats_df = pd.DataFrame(player_stats)
     return player_stats_df
-    
+
+def get_all_stats():
+    all_stats = []
+
+    for year in years:
+        all_stats_year = pd.read_csv(f"player_stats_20{year}.csv")
+        all_stats.append(all_stats_year)
+        
+    return pd.concat(all_stats)
+
 """use these stats as the parameter for train_model"""
 numerical_stats = ['AGE', 'GP', 'W', 'L',
        'W_PCT', 'MIN', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT',
@@ -61,7 +73,7 @@ numerical_stats = ['AGE', 'GP', 'W', 'L',
        'BLK', 'BLKA', 'PF', 'PFD', 'PTS', 'PLUS_MINUS', 'NBA_FANTASY_PTS',
        'DD2', 'TD3']
 
-def train_model(stat_to_predict, player_name):
+def train_player_model(stat_to_predict, player_name):
 
     training_data = get_player_stats(player_name)[get_player_stats(player_name)["YEAR"] < 2021]
     testing_data = get_player_stats(player_name)[get_player_stats(player_name)["YEAR"] == 2021]
@@ -71,12 +83,30 @@ def train_model(stat_to_predict, player_name):
     model = Ridge(alpha=.1)
     model.fit(training_data[[stat for stat in numerical_stats if stat != stat_to_predict]], training_data[stat_to_predict])
     
-    predicted_stat = model.predict(testing_data[[stat for stat in numerical_stats if stat != stat_to_predict]])
-    predicted_stat = pd.DataFrame(predicted_stat, columns=["predicted_stat"], index=testing_data.index)
+    predicted_stats = model.predict(testing_data[[stat for stat in numerical_stats if stat != stat_to_predict]])
+    predicted_stats = pd.DataFrame(predicted_stats, columns=["predicted_stats"], index=testing_data.index)
     
-    combined_stats = pd.concat([testing_data[["PLAYER_NAME", stat_to_predict]], predicted_stat], axis=1)
-    # print(combined_stats)
-    mean_difference = mean_squared_error(combined_stats[stat_to_predict], combined_stats["predicted_stat"])
-    print(mean_difference)
+    combined_stats = pd.concat([testing_data[["PLAYER_NAME", stat_to_predict]], predicted_stats], axis=1)
+    return combined_stats
+
+
+def train_all_model(stat_to_predict):
+    training_data = get_all_stats()[get_all_stats()["YEAR"] < 2021]
+    testing_data = get_all_stats()[get_all_stats()["YEAR"] == 2021]
+    # print(training_data)
+    # print(testing_data)
+
+    model = Ridge(alpha=.1)
+    model.fit(training_data[[stat for stat in numerical_stats if stat != stat_to_predict]], training_data[stat_to_predict])
     
-train_model("PTS", "Lebron James")
+    predicted_stats = model.predict(testing_data[[stat for stat in numerical_stats if stat != stat_to_predict]])
+    predicted_stats = pd.DataFrame(predicted_stats, columns=["predicted_stats"], index=testing_data.index)
+
+    combined_stats = pd.concat([testing_data[["PLAYER_NAME", stat_to_predict]], predicted_stats], axis=1)
+    combined_stats = combined_stats.sort_values("predicted_stats", ascending=False)
+    combined_stats["predicted_stats"] = combined_stats["predicted_stats"].apply(lambda x : 0 if x < 0 else x) # in case of any negative predicted values
+    combined_stats["accuracy"] = [combined_stats.iat[i, 2] * 100/combined_stats.iat[i, 2] for i in range(0, len(predicted_stats))]
+    return combined_stats
+
+print(train_all_model("NBA_FANTASY_PTS").head(50))
+
