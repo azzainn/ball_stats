@@ -1,15 +1,15 @@
-import math
-from math import comb
-from operator import ge
 from matplotlib import pyplot as plt
 import requests
 import numpy as np
 import pandas as pd
 import os.path
 from sklearn.linear_model import (
-    Ridge,
-)  # useful form of linear regression to prevent overfitting
-from sklearn.metrics import mean_squared_error  # useful error metric for regression
+    Ridge, Lasso, LinearRegression
+)
+from sklearn.feature_selection import (
+    SelectKBest, f_regression, RFE
+)
+from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 
 years = list(range(2001, 2022))
@@ -29,11 +29,13 @@ headers = {  # need this to bypass nba's bot detection
 }
 # helpers
 def get_stats_year(year):
-    """Retrieves general stats for all players from NBA.com for a given year
+    """Retrieves general stats for all players from NBA.com for a given year.
+
     Args:
         year: year to retrieve stats from
     Returns:
         DataFrame of stats from given year
+
     """
     year_url = player_url.format(
         str(year) + "-" + str(year + 1)[2:]
@@ -51,16 +53,19 @@ def get_stats_year(year):
 
 
 def clean_stats_year(df, year):
-    """Drops unnecessary features and adds a year column.
+    """Drops unnecessary features, adds a year column, turns floatable strings to floats.
+
     Args:
         df: DataFrame to clean up.
     Returns:
         None
+
     """
     df.drop(
         [
             "PLAYER_ID",
-            "TEAM_ID",
+            "NICKNAME",
+            "TEAM_ABBREVIATION",
             "WNBA_FANTASY_PTS",
             "WNBA_FANTASY_PTS_RANK",
             "CFID",
@@ -98,15 +103,23 @@ def clean_stats_year(df, year):
         axis=1,
         inplace=True,
     )
-    df["YEAR"] = str(year)
 
+    df["YEAR"] = year
+
+    for column in df:
+        try:
+            df[column] = df[column].apply(lambda x: float(x))
+        except:
+            pass
 
 def scale_data(df):
     """Scales a DataFrame using MinMaxScaler.
+
     Args:
         df: DataFrame to scale
     Returns:
         None
+
     """
     numeric_cols = df.columns[df.dtypes==np.number]
     scaler = MinMaxScaler()
@@ -118,32 +131,65 @@ def scale_data(df):
 
 def get_stats(file):
     """ Get NBA player stats from 2001-2022.
+
     Args:
         file: name of file to retrieve data from / output data to
     Returns:
         pandas DataFrame of all NBA player stats from 2001-2022
+
     """
     stats = []
 
     if not os.path.exists(file):
 
         for year in years:
+            print(year)
             stats_year = get_stats_year(year)
             clean_stats_year(stats_year, year)
-            stats_year["YEAR"] = f"{year}"
             stats.append(stats_year)
         stats = pd.concat(stats)
         stats.to_csv(file, index=False)
 
     else:
-        stats = pd.read_csv(file)
+        stats = pd.read_csv(file, index_col=False)
     
     return stats
+
+def keep_best_features(target, df, k):
+    """Keeps k columns with the best features from dataset using Pearson correlation and RFE.
+    
+    Args:
+        target: the feature you want to test correlation for
+        df: the DataFrame with all your data
+        k: the number of features you want
+    Returns:
+        DataFrame containing only the selected features
+
+    """
+    X = df.drop(["PLAYER_NAME", target], axis=1) # Dropping "PLAYER_NAME" b/c it's a str and doesn't work with f_regression
+    y = df[target]
+
+    # Pearson
+    pearson_corr = SelectKBest(f_regression, k=k)
+    selected_stats_pearson = pearson_corr.fit_transform(X, y)
+    selected_features_pearson = X.columns[pearson_corr.get_support()]
+
+    # RFE
+    rfe = RFE(LinearRegression(), n_features_to_select=k)
+    selected_stats_rfe = rfe.fit_transform(X, y)
+    selected_features_rfe = X.columns[rfe.get_support()]
+
+    # Combined
+    selected_features = set(selected_features_pearson).intersection(selected_features_rfe)
+    selected_stats = df[["PLAYER_NAME"] + list(selected_features)]
+    
+    return selected_stats
 
 if __name__ == "__main__":
 
     stats = get_stats("stats.csv")
     scale_data(stats)
+    stats = keep_best_features("NBA_FANTASY_PTS", stats, 15)
 
     def train_all_model(stat_to_predict):
         stats_excluding_prediction = [
