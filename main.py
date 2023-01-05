@@ -10,7 +10,7 @@ from sklearn.linear_model import (
     Ridge,
 )  # useful form of linear regression to prevent overfitting
 from sklearn.metrics import mean_squared_error  # useful error metric for regression
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
 years = list(range(2001, 2022))
 player_url = "https://stats.nba.com/stats/leaguedashplayerstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season={}&SeasonSegment=&SeasonType=Regular+Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=&Weight="
@@ -133,16 +133,20 @@ if __name__ == "__main__":
     #     "FG3A",
     # ]
 
+    # scale data
+    numeric_cols = stats.columns[stats.dtypes==np.number]
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(stats[numeric_cols])
+    scaled_data = pd.DataFrame(scaled_data, columns=numeric_cols)
+    stats = stats.drop(columns=numeric_cols)
+    stats = stats.join(scaled_data)
+
     def train_all_model(stat_to_predict):
         stats_excluding_prediction = [
             stat
             for stat in numerical_stats
             if stat != stat_to_predict or stat != "NBA_FANTASY_PTS"
         ]
-
-        scale = StandardScaler()
-        print(stats)
-        # scaled_stats = scale.fit_transform(stats)
 
         # Split data into training, validation, and test sets
         training_data = stats[stats["YEAR"] < 2017]
