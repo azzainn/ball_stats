@@ -29,14 +29,20 @@ headers = {  # need this to bypass nba's bot detection
 }
 # helpers
 def get_stats_year(year):
+    """Retrieves general stats for all players from NBA.com for a given year
+    Args:
+        year: year to retrieve stats from
+    Returns:
+        DataFrame of stats from given year
+    """
     year_url = player_url.format(
         str(year) + "-" + str(year + 1)[2:]
-    )  # need to do this weird formatting b/c url has year written as, for example, "2011-2012"
+    )
     request_year_url = requests.get(url=year_url, headers=headers).json()
 
     players = request_year_url["resultSets"][0][
         "rowSet"
-    ]  # need this to navigate through html and extract only the player data
+    ]
     columns = request_year_url["resultSets"][0]["headers"]
 
     stats_year = pd.DataFrame(players, columns=columns)
@@ -44,7 +50,13 @@ def get_stats_year(year):
     return stats_year
 
 
-def clean_stats_year(df):
+def clean_stats_year(df, year):
+    """Drops unnecessary features and adds a year column.
+    Args:
+        df: DataFrame to clean up.
+    Returns:
+        None
+    """
     df.drop(
         [
             "PLAYER_ID",
@@ -86,19 +98,38 @@ def clean_stats_year(df):
         axis=1,
         inplace=True,
     )
-    df["YEAR"] = f"{year}"
+    df["YEAR"] = str(year)
 
 
-if __name__ == "__main__":
+def scale_data(df):
+    """Scales a DataFrame using MinMaxScaler.
+    Args:
+        df: DataFrame to scale
+    Returns:
+        None
+    """
+    numeric_cols = df.columns[df.dtypes==np.number]
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(df[numeric_cols])
+    scaled_data = pd.DataFrame(scaled_data, columns=numeric_cols)
+    df = df.drop(columns=numeric_cols)
+    df = df.join(scaled_data)
 
+
+def get_stats(file):
+    """ Get NBA player stats from 2001-2022.
+    Args:
+        file: name of file to retrieve data from / output data to
+    Returns:
+        pandas DataFrame of all NBA player stats from 2001-2022
+    """
     stats = []
-    file = "stats.csv"
 
     if not os.path.exists(file):
 
         for year in years:
             stats_year = get_stats_year(year)
-            clean_stats_year(stats_year)
+            clean_stats_year(stats_year, year)
             stats_year["YEAR"] = f"{year}"
             stats.append(stats_year)
         stats = pd.concat(stats)
@@ -106,40 +137,13 @@ if __name__ == "__main__":
 
     else:
         stats = pd.read_csv(file)
+    
+    return stats
 
-    """use these stats as the parameter for train_model"""
-    numerical_stats = [
-        "FGM",
-        "FGA",
-        "FG_PCT",
-        "FG3M",
-        "FG3A",
-        "FG3_PCT",
-        "FTM",
-        "FTA",
-        "FT_PCT",
-        "PTS",
-        "PLUS_MINUS",
-        "NBA_FANTASY_PTS",
-    ]
-    # numerical_stats = [
-    #     "FGA",
-    #     "FG_PCT",
-    #     "FG3_PCT",
-    #     "NBA_FANTASY_PTS",
-    #     "FTM",
-    #     "FTA",
-    #     "PLUS_MINUS",
-    #     "FG3A",
-    # ]
+if __name__ == "__main__":
 
-    # scale data
-    numeric_cols = stats.columns[stats.dtypes==np.number]
-    scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(stats[numeric_cols])
-    scaled_data = pd.DataFrame(scaled_data, columns=numeric_cols)
-    stats = stats.drop(columns=numeric_cols)
-    stats = stats.join(scaled_data)
+    stats = get_stats("stats.csv")
+    scale_data(stats)
 
     def train_all_model(stat_to_predict):
         stats_excluding_prediction = [
