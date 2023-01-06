@@ -37,15 +37,11 @@ def get_stats_year(year):
         DataFrame of stats from given year
 
     """
-    year_url = player_url.format(
-        str(year) + "-" + str(year + 1)[2:]
-    )
-    print(year)
+    year_url = player_url.format(str(year) + "-" + str(year + 1)[2:])
+    print(year) # To check if request timed out
     request_year_url = requests.get(url=year_url, headers=headers).json()
 
-    players = request_year_url["resultSets"][0][
-        "rowSet"
-    ]
+    players = request_year_url["resultSets"][0]["rowSet"]
     columns = request_year_url["resultSets"][0]["headers"]
 
     stats_year = pd.DataFrame(players, columns=columns)
@@ -53,11 +49,11 @@ def get_stats_year(year):
     return stats_year
 
 
-def clean_stats_year(df, year):
+def format_stats_year(df, year):
     """Drops unnecessary features, adds a year column, turns floatable strings to floats.
 
     Args:
-        df: DataFrame to clean up.
+        df: DataFrame to format.
     Returns:
         None
 
@@ -137,7 +133,7 @@ def get_stats(file):
     Args:
         file (str): name of file to retrieve data from / output data to
     Returns:
-        DataFrame of all NBA player stats from 2001-2022
+        tuple contains DataFrame of all NBA player stats from 2001-2022 and DataFrame of player names
 
     """
     stats = []
@@ -146,15 +142,19 @@ def get_stats(file):
 
         for year in years:
             stats_year = get_stats_year(year)
-            clean_stats_year(stats_year, year)
+            format_stats_year(stats_year, year)
             stats.append(stats_year)
+
         stats = pd.concat(stats)
+        player_names = stats["PLAYER_NAME"]
+        stats.drop("PLAYER_NAME", inplace=True, axis=1)
         stats.to_csv(file, index=False)
+        player_names.to_csv("player_names.csv", index=False)
 
     else:
         stats = pd.read_csv(file, index_col=False)
-    
-    return stats
+        player_names = pd.read_csv("player_names.csv", index_col=False)
+    return (stats, player_names)
 
 
 def keep_best_features(df, target, k):
@@ -168,7 +168,7 @@ def keep_best_features(df, target, k):
         DataFrame containing only the selected features
 
     """
-    X = df.drop(["PLAYER_NAME", target], axis=1) # Dropping "PLAYER_NAME" b/c it's a str and doesn't work with f_regression
+    X = df.drop(target, axis=1)
     y = df[target]
 
     # Pearson
@@ -183,7 +183,7 @@ def keep_best_features(df, target, k):
 
     # Ensemble
     selected_features = set(selected_features_pearson).intersection(selected_features_rfe)
-    selected_stats = df[["PLAYER_NAME"] + list(selected_features)]
+    selected_stats = df[list(selected_features)]
     
     return selected_stats
 
@@ -213,16 +213,41 @@ def split_into_sets(df, target, train_size, valid_size, k):
 
     return (X_train, y_train, X_valid, y_valid, X_test, y_test)
 
-def determine_alpha(): # find alpha for Ridge/Lasso using grid search
-    pass
+
+def best_alpha(sets): # find alpha for Ridge/Lasso using grid search
+    """ Determine the best alpha value to use for Ridge and Lasso models
+    
+    Args:
+        sets: tuple of training, validation, and testing feature & data
+    Returns:
+        tuple containing best alpha values
+
+    """
+    X_train, y_train, X_valid, y_valid, X_test, y_test = sets
+    param_grid = {"alpha": [0.001, 0.01, 0.1, 1, 10]}
+    
+    ridge = Ridge()
+    lasso = Lasso()
+
+    grid_ridge = GridSearchCV(estimator=ridge, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
+    grid_lasso = GridSearchCV(estimator=lasso, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
+
+    grid_ridge.fit(X_train, y_train)
+    grid_lasso.fit(X_train, y_train)
+
+    best_alpha_ridge = grid_ridge.best_params_["alpha"]
+    best_alpha_lasso = grid_lasso.best_params_["alpha"]
+
+    return (best_alpha_ridge, best_alpha_lasso)
 
 
-def best_model(models, sets):
+def best_model(models, sets, alphas):
     """ Chooses the best model from a list of models based on lowest mean squared error.
 
     Args:
-        models: list of models to choose from
-        sets: train, valid, and test feature & target sets
+        models (list): models to choose from
+        sets (list): train, valid, and test feature & target data
+        alphas (tuple): alpha values to use
     Returns:
         Model that leads to lowest mse
 
@@ -232,6 +257,12 @@ def best_model(models, sets):
     best_model = None
 
     for model in models:
+        if model == Ridge:
+            alpha = alphas[0]
+            model = model(alpha=alpha)
+        elif model == Lasso:
+            alpha = alphas[1]
+            model = model(alpha=alpha)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_valid)
         mse = mean_squared_error(y_true=y_valid, y_pred=y_pred)
@@ -243,14 +274,21 @@ def best_model(models, sets):
     return best_model
 
 
+# def test_model(model):
+#     X_train, y_train, X_valid, y_valid, X_test, y_test = sets
+#     y_pred = model.predict(X_test)
+#     mse = mean_squared_error(y_true=y_test, y_pred=y_pred)
+#     print(mse)
+
 
 if __name__ == "__main__":
 
-    stats = get_stats("stats.csv")
+    stats, player_names = get_stats("stats.csv")
     scale_data(stats)
     sets = split_into_sets(stats, "PTS", .7, .15, 12)
-    # model = best_model([LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()], sets)
-
+    models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
+    alphas = best_alpha(sets)
+    model = best_model(models, sets, (1, 0.001))
 
     # def train_all_model(stat_to_predict):
     #     stats_excluding_prediction = [
