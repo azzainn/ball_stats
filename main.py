@@ -27,7 +27,8 @@ headers = {  # need this to bypass nba's bot detection
 }
 # helpers
 def get_stats_year(year):
-    """Retrieves general stats for all players from NBA.com for a given year.
+    """
+    Retrieves general stats for all players from NBA.com for a given year.
 
     Args:
         year (int): year to retrieve stats from
@@ -48,7 +49,8 @@ def get_stats_year(year):
 
 
 def format_stats_year(df, year):
-    """Drops unnecessary features, adds a year column, turns floatable strings to floats.
+    """
+    Drops unnecessary features, adds a year column, turns floatable strings to floats.
 
     Args:
         df: DataFrame to format.
@@ -108,7 +110,8 @@ def format_stats_year(df, year):
 
 
 def scale_data(df):
-    """Scales a DataFrame using MinMaxScaler.
+    """
+    Scales a DataFrame using MinMaxScaler.
 
     Args:
         df: DataFrame to scale
@@ -125,7 +128,8 @@ def scale_data(df):
 
 
 def get_stats(file):
-    """Get NBA player stats from 2001-2022.
+    """
+    Get NBA player stats from 2001-2022.
 
     Args:
         file (str): name of file to retrieve data from / output data to
@@ -155,7 +159,8 @@ def get_stats(file):
 
 
 def keep_best_features(df, target, k):
-    """Keeps k columns with the best features from dataset using ensemble feature selection.
+    """
+    Keeps k columns with the best features from dataset using ensemble feature selection.
 
     Args:
         df: the DataFrame with all your data
@@ -188,7 +193,8 @@ def keep_best_features(df, target, k):
 
 
 def split_into_sets(df, target, train_size, valid_size, k):
-    """Splits a dataset into training, validation, and testing feature & target data based on chronological order
+    """
+    Splits a dataset into training, validation, and testing feature & target data based on chronological order
 
     Args:
         df: DataFrame to split
@@ -217,7 +223,8 @@ def split_into_sets(df, target, train_size, valid_size, k):
 
 
 def best_alpha(sets):
-    """Determine the best alpha value to use for Ridge and Lasso models
+    """
+    Determine the best alpha value to use for Ridge and Lasso models
 
     Args:
         sets: tuple of training, validation, and testing feature & data
@@ -248,7 +255,8 @@ def best_alpha(sets):
 
 
 def best_model(models, sets, alphas):
-    """Chooses the best model from a list of models based on lowest mean squared error.
+    """
+    Chooses the best model from a list of models based on lowest mean squared error.
 
     Args:
         models (list): models to choose from
@@ -281,7 +289,8 @@ def best_model(models, sets, alphas):
 
 
 def test_model(model):
-    """Outputs predicted values from chosen model.
+    """
+    Outputs predicted values from chosen model.
 
     Args:
         model: model to test
@@ -297,20 +306,16 @@ def test_model(model):
     return results
 
 
-if __name__ == "__main__":
+def plot_data(results):
+    """
+    Plots actual and predicted values of chosen statistic.
 
-    target = "NBA_FANTASY_PTS"
-    train_size = 0.7
-    valid_size = 0.15
-    k = 15
-    models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
-    stats, player_names = get_stats("stats.csv")
-    scale_data(stats)
-    sets = split_into_sets(stats, target, train_size, valid_size, k)
-    alphas = best_alpha(sets)
-    model = best_model(models, sets, alphas)
-    results = test_model(model)
+    Args:
+        results: DataFrame with actual and predicted values
+    Returns:
+        None
 
+    """
     y_actual = results["Actual"].to_numpy()
     y_pred = results["Predicted"].to_numpy()
 
@@ -319,3 +324,26 @@ if __name__ == "__main__":
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
     plt.show()
+
+
+if __name__ == "__main__":
+
+    ##################################################################################
+    # Modify as needed
+
+    target = "NBA_FANTASY_PTS"
+    train_size = 0.7
+    valid_size = 0.15
+    k = 15
+    models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
+
+    ##################################################################################
+
+    stats, player_names = get_stats("stats.csv")
+    scale_data(stats)
+    sets = split_into_sets(stats, target, train_size, valid_size, k)
+    alphas = best_alpha(sets)
+    model = best_model(models, sets, alphas)
+    results = test_model(model)
+
+    plot_data(results)
