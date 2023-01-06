@@ -3,12 +3,10 @@ import numpy as np
 import pandas as pd
 import os.path
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.feature_selection import (
-    SelectKBest, f_regression, RFE
-)
+from sklearn.feature_selection import SelectKBest, f_regression, RFE
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error
-from sklearn.linear_model import (Ridge, Lasso, LinearRegression)
+from sklearn.linear_model import Ridge, Lasso, LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from matplotlib import pyplot as plt
 
@@ -38,7 +36,7 @@ def get_stats_year(year):
 
     """
     year_url = player_url.format(str(year) + "-" + str(year + 1)[2:])
-    print(year) # To check if request timed out
+    print(year)  # To check if request timed out
     request_year_url = requests.get(url=year_url, headers=headers).json()
 
     players = request_year_url["resultSets"][0]["rowSet"]
@@ -60,7 +58,6 @@ def format_stats_year(df, year):
     """
     df.drop(
         [
-            "PLAYER_ID",
             "NICKNAME",
             "TEAM_ABBREVIATION",
             "WNBA_FANTASY_PTS",
@@ -119,7 +116,7 @@ def scale_data(df):
         None
 
     """
-    numeric_cols = df.columns[df.dtypes==np.number]
+    numeric_cols = df.columns[df.dtypes == np.number]
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df[numeric_cols])
     scaled_data = pd.DataFrame(scaled_data, columns=numeric_cols)
@@ -128,7 +125,7 @@ def scale_data(df):
 
 
 def get_stats(file):
-    """ Get NBA player stats from 2001-2022.
+    """Get NBA player stats from 2001-2022.
 
     Args:
         file (str): name of file to retrieve data from / output data to
@@ -159,7 +156,7 @@ def get_stats(file):
 
 def keep_best_features(df, target, k):
     """Keeps k columns with the best features from dataset using ensemble feature selection.
-    
+
     Args:
         df: the DataFrame with all your data
         target (str): the feature you want to test correlation for
@@ -182,15 +179,17 @@ def keep_best_features(df, target, k):
     selected_features_rfe = X.columns[rfe.get_support()]
 
     # Ensemble
-    selected_features = set(selected_features_pearson).intersection(selected_features_rfe)
+    selected_features = set(selected_features_pearson).intersection(
+        selected_features_rfe
+    )
     selected_stats = df[list(selected_features)]
-    
+
     return selected_stats
 
 
 def split_into_sets(df, target, train_size, valid_size, k):
     """Splits a dataset into training, validation, and testing feature & target data based on chronological order
-    
+
     Args:
         df: DataFrame to split
         target (str): feature to train on
@@ -204,19 +203,22 @@ def split_into_sets(df, target, train_size, valid_size, k):
     if train_size + valid_size >= 1:
         raise ValueError("train_size + valid_size must be < 1")
 
-    train_index = int(len(df)*train_size)
-    valid_index = int(len(df)*(train_size+valid_size))
+    train_index = int(len(df) * train_size)
+    valid_index = int(len(df) * (train_size + valid_size))
     selected_stats = keep_best_features(df, target, k)
     X_train, y_train = selected_stats[0:train_index], df[0:train_index][target]
-    X_valid, y_valid = selected_stats[train_index:valid_index], df[train_index:valid_index][target]
+    X_valid, y_valid = (
+        selected_stats[train_index:valid_index],
+        df[train_index:valid_index][target],
+    )
     X_test, y_test = selected_stats[valid_index:], df[valid_index:][target]
 
     return (X_train, y_train, X_valid, y_valid, X_test, y_test)
 
 
-def best_alpha(sets): # find alpha for Ridge/Lasso using grid search
-    """ Determine the best alpha value to use for Ridge and Lasso models
-    
+def best_alpha(sets):
+    """Determine the best alpha value to use for Ridge and Lasso models
+
     Args:
         sets: tuple of training, validation, and testing feature & data
     Returns:
@@ -225,12 +227,16 @@ def best_alpha(sets): # find alpha for Ridge/Lasso using grid search
     """
     X_train, y_train, X_valid, y_valid, X_test, y_test = sets
     param_grid = {"alpha": [0.001, 0.01, 0.1, 1, 10]}
-    
+
     ridge = Ridge()
     lasso = Lasso()
 
-    grid_ridge = GridSearchCV(estimator=ridge, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
-    grid_lasso = GridSearchCV(estimator=lasso, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
+    grid_ridge = GridSearchCV(
+        estimator=ridge, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error"
+    )
+    grid_lasso = GridSearchCV(
+        estimator=lasso, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error"
+    )
 
     grid_ridge.fit(X_train, y_train)
     grid_lasso.fit(X_train, y_train)
@@ -242,7 +248,7 @@ def best_alpha(sets): # find alpha for Ridge/Lasso using grid search
 
 
 def best_model(models, sets, alphas):
-    """ Chooses the best model from a list of models based on lowest mean squared error.
+    """Chooses the best model from a list of models based on lowest mean squared error.
 
     Args:
         models (list): models to choose from
@@ -274,73 +280,42 @@ def best_model(models, sets, alphas):
     return best_model
 
 
-# def test_model(model):
-#     X_train, y_train, X_valid, y_valid, X_test, y_test = sets
-#     y_pred = model.predict(X_test)
-#     mse = mean_squared_error(y_true=y_test, y_pred=y_pred)
-#     print(mse)
+def test_model(model):
+    """Outputs predicted values from chosen model.
+
+    Args:
+        model: model to test
+    Returns:
+        DataFrame with actual and predicted values
+
+    """
+    X_train, y_train, X_valid, y_valid, X_test, y_test = sets
+    y_pred = model.predict(X_test)
+    remove_neg = np.vectorize(lambda x: max(0, x))
+    y_pred = remove_neg(y_pred)
+    results = pd.DataFrame({"Actual": y_test, "Predicted": y_pred})
+    return results
 
 
 if __name__ == "__main__":
 
+    target = "NBA_FANTASY_PTS"
+    train_size = 0.7
+    valid_size = 0.15
+    k = 15
+    models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
     stats, player_names = get_stats("stats.csv")
     scale_data(stats)
-    sets = split_into_sets(stats, "PTS", .7, .15, 12)
-    models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
+    sets = split_into_sets(stats, target, train_size, valid_size, k)
     alphas = best_alpha(sets)
-    model = best_model(models, sets, (1, 0.001))
+    model = best_model(models, sets, alphas)
+    results = test_model(model)
 
-    # def train_all_model(stat_to_predict):
-    #     stats_excluding_prediction = [
-    #         stat
-    #         for stat in numerical_stats
-    #         if stat != stat_to_predict or stat != "NBA_FANTASY_PTS"
-    #     ]
+    y_actual = results["Actual"].to_numpy()
+    y_pred = results["Predicted"].to_numpy()
 
-    #     # Split data into training, validation, and test sets
-    #     training_data = stats[stats["YEAR"] < 2017]
-    #     validation_data = stats[(stats["YEAR"] >= 2017) & (stats["YEAR"] <= 2019)]
-    #     test_data = stats[stats["YEAR"] > 2019]
-
-    #     model = Ridge(alpha=0.1)
-    #     model.fit(
-    #         training_data[stats_excluding_prediction], training_data[stat_to_predict]
-    #     )
-
-    #     # Evaluate model on validation set
-    #     predicted_stats = model.predict(validation_data[stats_excluding_prediction])
-    #     mse = mean_squared_error(validation_data[stat_to_predict], predicted_stats)
-    #     print("Validation MSE:", mse)
-    #     predicted_stats = pd.DataFrame(
-    #         predicted_stats, columns=["predicted_stats"], index=validation_data.index
-    #     )
-    #     validation_combined_stats = pd.concat(
-    #         [validation_data[["PLAYER_NAME", stat_to_predict]], predicted_stats], axis=1
-    #     )
-
-    #     # Add code here to select the best model based on mean squared error
-    #     # Select the model with the best performance on the validation set
-
-    #     # Evaluate final model on test set
-    #     predicted_stats = model.predict(test_data[stats_excluding_prediction])
-    #     mse = mean_squared_error(test_data[stat_to_predict], predicted_stats)
-    #     print("Validation MSE:", mse)
-    #     predicted_stats = pd.DataFrame(
-    #         predicted_stats, columns=["predicted_stats"], index=test_data.index
-    #     )
-    #     combined_stats = pd.concat(
-    #         [test_data[["PLAYER_NAME", stat_to_predict]], predicted_stats], axis=1
-    #     )
-    #     combined_stats = combined_stats.sort_values("predicted_stats", ascending=False)
-    #     combined_stats["predicted_stats"] = combined_stats["predicted_stats"].apply(
-    #         lambda x: 0 if x < 0 else x
-    #     )  # in case of any negative predicted values
-    #     combined_stats["accuracy"] = [
-    #         combined_stats.iat[i, 2] / combined_stats.iat[i, 1]
-    #         if abs(combined_stats.iat[i, 1] - combined_stats.iat[i, 2]) > 0.1
-    #         else 1
-    #         for i in range(0, len(predicted_stats))
-    #     ]  # prevents runtimewarning with near equal numbers dividing by each other
-    #     return combined_stats  # return the model instead
-
-    # train_all_model("PTS").head(50)
+    plt.figure()
+    plt.scatter(y_pred, y_actual)
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.show()
