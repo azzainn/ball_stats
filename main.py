@@ -306,10 +306,32 @@ def test_model(model):
     return results
 
 
+def get_accuracy(results, diff):
+    """
+    Calculates percentage of predictions that are close to actual value.
+
+    Args:
+        results: DataFrame with actual and predicted values
+        diff (float): difference between prediction and actual
+    Returns:
+        percentage of predictions close to actual value (float)
+
+    """
+    y_actual = results["Actual"].to_numpy()
+    y_pred = results["Predicted"].to_numpy()
+    
+    counter = 0
+    for actual, pred in zip(y_actual, y_pred):
+        if abs(actual - pred) <= diff:
+            counter += 1
+    
+    return counter / len(y_actual)
+
+
 def plot_data(results):
     """
     Plots actual and predicted values of chosen statistic.
-
+    A straight line corresponds to a completely accurate model.
     Args:
         results: DataFrame with actual and predicted values
     Returns:
@@ -320,7 +342,7 @@ def plot_data(results):
     y_pred = results["Predicted"].to_numpy()
 
     plt.figure()
-    plt.scatter(y_pred, y_actual)
+    plt.scatter(y_pred, y_actual, s=3)
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
     plt.show()
@@ -334,7 +356,7 @@ if __name__ == "__main__":
     target = "NBA_FANTASY_PTS"
     train_size = 0.7
     valid_size = 0.15
-    k = 15
+    k = 15 # Some k values break the program. Add a raise statement in the split_into_sets code.
     models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
 
     ##################################################################################
@@ -345,5 +367,7 @@ if __name__ == "__main__":
     alphas = best_alpha(sets)
     model = best_model(models, sets, alphas)
     results = test_model(model)
+    accuracy = get_accuracy(results, 2)
 
+    print(accuracy)
     plot_data(results)
