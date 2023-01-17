@@ -1,22 +1,7 @@
-# Basketball Statistics Predictor
-Predicts future NBA player performance using machine learning
+## Basketball Statistics Predictor
 
-![Image 10-2-22 at 4 02 AM](https://user-images.githubusercontent.com/79682890/193445079-22605745-c1ec-4833-9dce-c35bf9ac90a7.jpg)
+<img width="574" alt="Screenshot 2023-01-17 at 6 03 20 PM" src="https://user-images.githubusercontent.com/79682890/213031543-3869bf9d-80e3-410c-a2a6-4bd0f4d7acff.png">
 
-## Introduction
+# Applies machine learning algorithms on historical data of player performances to identify patterns and provide fans with insights on future player performance.
 
-Global food insecurity is an ever-present problem even though we have the food and technology resources to feed Earth's population. Many go hungry because the task of bringing food to locations of insecurity has yet to have been met with a solution.
-
-Our project, in alignment with Panera's core beliefs, looks to make use of technology to extend a helping hand to such regions and hopefully make the world a healthier, happier place. We aim to guide Panera as well as allied food providers to locations where new food distribution hub implementations can help those in need most effectively. The project uses population magnitudes of affected individuals as well as their respective latitudinal and longitudinal coordinates to calculate an optimized location for such hub implementations.
-
-## Instructions
-
-Clone the repo and install the following libraries:
-requests,
-pandas,
-bs4,
-shapely,
-geopandas,
-matplotlib
-
-Run the program and you will receive a CSV with the most optimized latitudes/longitudes and an image displaying the appropiate coordinates.
+# Run the program and you will see a DataFrame with the predicted values for the chosen stat and a figure displaying the relationship between the actual and predicted values.
