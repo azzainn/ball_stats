@@ -1,3 +1,4 @@
+import random
 import requests
 import numpy as np
 import pandas as pd
@@ -25,7 +26,9 @@ headers = {  # need this to bypass nba's bot detection
     "Accept-Encoding": "gzip, deflate, br",
     "Accept-Language": "en-US,en;q=0.9",
 }
-# helpers
+
+# Helpers
+
 def get_stats_year(year):
     """
     Retrieves general stats for all players from NBA.com for a given year.
@@ -173,20 +176,15 @@ def keep_best_features(df, target, k):
     X = df.drop(target, axis=1)
     y = df[target]
 
-    # Pearson
     pearson_corr = SelectKBest(f_regression, k=k)
     pearson_corr.fit_transform(X, y)
     selected_features_pearson = X.columns[pearson_corr.get_support()]
 
-    # RFE
     rfe = RFE(LinearRegression(), n_features_to_select=k)
     rfe.fit_transform(X, y)
     selected_features_rfe = X.columns[rfe.get_support()]
 
-    # Ensemble
-    selected_features = set(selected_features_pearson).intersection(
-        selected_features_rfe
-    )
+    selected_features = set(selected_features_pearson).intersection(selected_features_rfe)
     selected_stats = df[list(selected_features)]
 
     return selected_stats
@@ -232,18 +230,14 @@ def best_alpha(sets):
         tuple containing best alpha values
 
     """
-    X_train, y_train, X_valid, y_valid, X_test, y_test = sets
+    X_train, y_train = sets[:2]
     param_grid = {"alpha": [0.001, 0.01, 0.1, 1, 10]}
 
     ridge = Ridge()
     lasso = Lasso()
 
-    grid_ridge = GridSearchCV(
-        estimator=ridge, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error"
-    )
-    grid_lasso = GridSearchCV(
-        estimator=lasso, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error"
-    )
+    grid_ridge = GridSearchCV(estimator=ridge, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
+    grid_lasso = GridSearchCV(estimator=lasso, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
 
     grid_ridge.fit(X_train, y_train)
     grid_lasso.fit(X_train, y_train)
@@ -266,7 +260,7 @@ def best_model(models, sets, alphas):
         Model that leads to lowest mse
 
     """
-    X_train, y_train, X_valid, y_valid, X_test, y_test = sets
+    X_train, y_train, X_valid, y_valid = sets[:4]
     min_mse = float("inf")
     best_model = None
 
@@ -288,17 +282,18 @@ def best_model(models, sets, alphas):
     return best_model
 
 
-def test_model(model):
+def test_model(model, sets):
     """
     Outputs predicted values from chosen model.
 
     Args:
         model: model to test
+        sets (list): train, valid, and test feature & target data
     Returns:
         DataFrame with actual and predicted values
 
     """
-    X_train, y_train, X_valid, y_valid, X_test, y_test = sets
+    X_test, y_test = sets[4:]
     y_pred = model.predict(X_test)
     remove_neg = np.vectorize(lambda x: max(0, x))
     y_pred = remove_neg(y_pred)
@@ -314,37 +309,42 @@ def get_accuracy(results, diff):
         results: DataFrame with actual and predicted values
         diff (float): difference between prediction and actual
     Returns:
-        percentage of predictions close to actual value (float)
+        tuple of percentage of predictions close to actual value (float) and the diff
 
     """
     y_actual = results["Actual"].to_numpy()
     y_pred = results["Predicted"].to_numpy()
-    
+
     counter = 0
     for actual, pred in zip(y_actual, y_pred):
         if abs(actual - pred) <= diff:
             counter += 1
-    
-    return counter / len(y_actual)
+
+    return (counter / len(y_actual), diff)
 
 
-def plot_data(results):
+def plot_data(results, target, accuracy):
     """
     Plots actual and predicted values of chosen statistic.
     A straight line corresponds to a completely accurate model.
     Args:
         results: DataFrame with actual and predicted values
+        target (str): stat to predict
+        accuracy (float): percent of predicted values close to actual values
     Returns:
         None
 
     """
     y_actual = results["Actual"].to_numpy()
     y_pred = results["Predicted"].to_numpy()
+    percent = round((accuracy[0] * 100), 3)
+    diff = accuracy[1]
 
     plt.figure()
     plt.scatter(y_pred, y_actual, s=3)
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
+    plt.title(f"{percent}% of predicted within {diff} of actual ({target})")
     plt.show()
 
 
@@ -356,7 +356,7 @@ if __name__ == "__main__":
     target = "NBA_FANTASY_PTS"
     train_size = 0.7
     valid_size = 0.15
-    k = 15 # Some k values break the program. Add a raise statement in the split_into_sets code.
+    k = 15  # Some k values break the program. Add a raise statement in the split_into_sets code.
     models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
 
     ##################################################################################
@@ -366,8 +366,7 @@ if __name__ == "__main__":
     sets = split_into_sets(stats, target, train_size, valid_size, k)
     alphas = best_alpha(sets)
     model = best_model(models, sets, alphas)
-    results = test_model(model)
+    results = test_model(model, sets)
     accuracy = get_accuracy(results, 2)
 
-    print(accuracy)
-    plot_data(results)
+    plot_data(results, target, accuracy)
