@@ -1,4 +1,3 @@
-import random
 import requests
 import numpy as np
 import pandas as pd
@@ -10,11 +9,12 @@ from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Ridge, Lasso, LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from matplotlib import pyplot as plt
+import warnings
 
 years = list(range(2001, 2022))
 player_url = "https://stats.nba.com/stats/leaguedashplayerstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&GameSegment=&Height=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerExperience=&PlayerPosition=&PlusMinus=N&Rank=N&Season={}&SeasonSegment=&SeasonType=Regular+Season&ShotClockRange=&StarterBench=&TeamID=0&TwoWay=0&VsConference=&VsDivision=&Weight="
 
-headers = {  # need this to bypass nba's bot detection
+headers = {  # used to bypass bot detection
     "Connection": "keep-alive",
     "Accept": "application/json, text/plain, */*",
     "x-nba-stats-token": "true",
@@ -36,7 +36,7 @@ def get_stats_year(year):
     Args:
         year (int): year to retrieve stats from
     Returns:
-        DataFrame of stats from given year
+        (DataFrame): stats for given year
 
     """
     year_url = player_url.format(str(year) + "-" + str(year + 1)[2:])
@@ -56,7 +56,7 @@ def format_stats_year(df, year):
     Drops unnecessary features, adds a year column, turns floatable strings to floats.
 
     Args:
-        df: DataFrame to format.
+        df (DataFrame): data to format
     Returns:
         None
 
@@ -117,7 +117,7 @@ def scale_data(df):
     Scales a DataFrame using MinMaxScaler.
 
     Args:
-        df: DataFrame to scale
+        df (DataFrame): data to scale
     Returns:
         None
 
@@ -137,7 +137,7 @@ def get_stats(file):
     Args:
         file (str): name of file to retrieve data from / output data to
     Returns:
-        tuple contains DataFrame of all NBA player stats from 2001-2022 and DataFrame of player names
+        (tuple): NBA player stats from 2001-2022 (DataFrame) and player names (DataFrame)
 
     """
     stats = []
@@ -158,6 +158,7 @@ def get_stats(file):
     else:
         stats = pd.read_csv(file, index_col=False)
         player_names = pd.read_csv("player_names.csv", index_col=False)
+
     return (stats, player_names)
 
 
@@ -166,11 +167,11 @@ def keep_best_features(df, target, k):
     Keeps k columns with the best features from dataset using ensemble feature selection.
 
     Args:
-        df: the DataFrame with all your data
-        target (str): the feature you want to test correlation for
+        df (DataFrame): data
+        target (str): feature to test correlation for
         k (int): num features to keep
     Returns:
-        DataFrame containing only the selected features
+        (DataFrame): selected features
 
     """
     X = df.drop(target, axis=1)
@@ -195,13 +196,13 @@ def split_into_sets(df, target, train_size, valid_size, k):
     Splits a dataset into training, validation, and testing feature & target data based on chronological order
 
     Args:
-        df: DataFrame to split
+        df (DataFrame): data to split
         target (str): feature to train on
-        train_size (float): value between 0 and 1 determining size of training set
-        valid_size (float): value between 0 and 1 determining size of validation set
+        train_size (float): training set size (between 0 and 1 exclusive)
+        valid_size (float): validation set size (between 0 and 1 exlusive)
         k (int): num features to keep
     Returns:
-        tuple containing training, validation, and testing feature & target data
+        (tuple): training, validation, and testing feature & target data
 
     """
     if train_size + valid_size >= 1:
@@ -225,27 +226,34 @@ def best_alpha(sets):
     Determine the best alpha value to use for Ridge and Lasso models
 
     Args:
-        sets: tuple of training, validation, and testing feature & data
+        sets (tuple): training, validation, and testing feature & data
     Returns:
-        tuple containing best alpha values
+        (tuple): best alpha values
 
     """
-    X_train, y_train = sets[:2]
-    param_grid = {"alpha": [0.001, 0.01, 0.1, 1, 10]}
 
-    ridge = Ridge()
-    lasso = Lasso()
+    warnings.filterwarnings("error")
+    try:
+        X_train, y_train = sets[:2]
+        param_grid = {"alpha": [0.001, 0.01, 0.1, 1, 10]}
 
-    grid_ridge = GridSearchCV(estimator=ridge, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
-    grid_lasso = GridSearchCV(estimator=lasso, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
+        ridge = Ridge()
+        lasso = Lasso()
 
-    grid_ridge.fit(X_train, y_train)
-    grid_lasso.fit(X_train, y_train)
+        grid_ridge = GridSearchCV(estimator=ridge, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
+        grid_lasso = GridSearchCV(estimator=lasso, param_grid=param_grid, cv=5, scoring="neg_mean_squared_error")
+        
+        grid_ridge.fit(X_train, y_train)
+        grid_lasso.fit(X_train, y_train)
 
-    best_alpha_ridge = grid_ridge.best_params_["alpha"]
-    best_alpha_lasso = grid_lasso.best_params_["alpha"]
+        best_alpha_ridge = grid_ridge.best_params_["alpha"]
+        best_alpha_lasso = grid_lasso.best_params_["alpha"]
 
-    return (best_alpha_ridge, best_alpha_lasso)
+        warnings.resetwarnings()
+        return (best_alpha_ridge, best_alpha_lasso)
+    except:
+        print("Did not converge. Pick different set sizes or a lower k value.")
+        
 
 
 def best_model(models, sets, alphas):
@@ -257,7 +265,7 @@ def best_model(models, sets, alphas):
         sets (list): train, valid, and test feature & target data
         alphas (tuple): alpha values to use
     Returns:
-        Model that leads to lowest mse
+        (Model): best model
 
     """
     X_train, y_train, X_valid, y_valid = sets[:4]
@@ -287,17 +295,19 @@ def test_model(model, sets):
     Outputs predicted values from chosen model.
 
     Args:
-        model: model to test
+        model (Model): model to test
         sets (list): train, valid, and test feature & target data
     Returns:
-        DataFrame with actual and predicted values
+        (DataFrame): actual and predicted values
 
     """
+
     X_test, y_test = sets[4:]
     y_pred = model.predict(X_test)
     remove_neg = np.vectorize(lambda x: max(0, x))
     y_pred = remove_neg(y_pred)
     results = pd.DataFrame({"Actual": y_test, "Predicted": y_pred})
+
     return results
 
 
@@ -306,10 +316,10 @@ def get_accuracy(results, diff):
     Calculates percentage of predictions that are close to actual value.
 
     Args:
-        results: DataFrame with actual and predicted values
+        results (DataFrame): actual and predicted values
         diff (float): difference between prediction and actual
     Returns:
-        tuple of percentage of predictions close to actual value (float) and the diff
+        (tuple): percentage of predictions close to actual value (float) and the diff (float)
 
     """
     y_actual = results["Actual"].to_numpy()
@@ -328,9 +338,9 @@ def plot_data(results, target, accuracy):
     Plots actual and predicted values of chosen statistic.
     A straight line corresponds to a completely accurate model.
     Args:
-        results: DataFrame with actual and predicted values
+        results (DataFrame): actual and predicted values
         target (str): stat to predict
-        accuracy (float): percent of predicted values close to actual values
+        accuracy (tuple): accuracy (float) and diff between predicted and actual (float)
     Returns:
         None
 
@@ -356,7 +366,7 @@ if __name__ == "__main__":
     target = "NBA_FANTASY_PTS"
     train_size = 0.7
     valid_size = 0.15
-    k = 15  # Some k values break the program. Add a raise statement in the split_into_sets code.
+    k = 16
     models = [LinearRegression(), Ridge(), Lasso(), RandomForestRegressor()]
 
     ##################################################################################
